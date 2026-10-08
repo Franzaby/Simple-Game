@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<!-- experiment code: connecting 2 projects -->
+<html>
+    <head>
+        <title>2d top down action puzzle facility escape game</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {margin:0;padding:10px;display:flex;justify-content: center;align-items:center;min-height:100vh;background-color:#f0f0f0;box-sizing:border-box}
+            canvas {border:1px solid black;max-width:100%;height:auto;margin: 0 auto;box-sizing:border-box}
+            button {min-width:100px;min-height:50px;font-size:30px;touch-action:none;padding:10px}
+            .mcv {display:flex;flex-direction:column;align-items:center;gap:15px;width:100%;max-width:500px}
+            .ud {display:flex;flex-direction:column;align-items:center;padding:5px}
+            .move {display:flex;flex-direction:column;align-items:center}
+            .user {display:flex;justify-content:space-between;align-items:center;width:100%;padding:0 10px;box-sizing:border-box}
+            .gaym {position:relative;width:100%;max-height:100%;aspect-ratio:1/1}
+            .pop {position:absolute;display:none;top:50%;left:50%;transform:translate(-50%, -50%);border:2px solid black;width:max-content;max-width:90%;background-color:white;padding:10px;z-index:10}
+            .extra {display:flex;flex-direction:row;align-items:center;gap:15px}
+        </style>
+    </head>
+    <body>
+        <div class="mcv">
+            <div class="gaym">
+                <canvas id="cv" width="500" height="500"></canvas>
+                <!-- minigame -->
+                <div class="pop" id="mg1" style="display:none">
+                    <div class="move" style="gap:10px">
+                        <h1>enter code</h1>
+                        <input type="number" placeholder="enter" id="userint">
+                        <button type="button" id="submit">submit</button>
+                    </div>
+                </div>
+                <!-- things u see -->
+                <div class="pop" id="inve" style="display:none">
+                    <h1 style="text-align:center">inventory</h1>
+                    <canvas id="invent" height="200" width="300"></canvas>
+                    <h2 id="iName"></h2>
+                    <p id="iDesc" style="text-align:center"></p>
+                </div>
+                <div class="pop" id="divmap" style="display:none">
+                    <h1 style="text-align:center">map</h1>
+                    <canvas id="cvmap" height="300" width="300"></canvas>
+                </div>
+                <div class="pop" id="take" style="display:none">
+                    <h1 style="text-align:center">take?</h1>
+                    <button type="button" id="yes">yes</button>
+                    <button type="button" id="no">no</button>
+                </div>
+                <div class="pop" id="message" style="display:none">
+                    <h1 id="word" style="text-align:center">placeholder</h1>
+                </div>
+            </div>
+            <!-- user movement -->
+            <div class="user">
+                <div class="move">
+                    <div class="ud">
+                        <button type="button" id="up">up</button>
+                    </div>
+                    <div>
+                        <button type="button" id="left">left</button>
+                        <button type="button" id="right">right</button>
+                    </div>
+                    <div class="ud">
+                        <button type="button" id="down">down</button>
+                    </div>
+                </div>
+                <div class="action">
+                    <button type="button" id="interact">interact</button>
+                    <button type="button" id="attack">action</button>
+                </div>
+            </div>
+            <div class="extra">
+                <button type="button" id="inb">inventory</button>
+                <button type="button" id="bmap">map</button>
+                <button type="button" id="cheat">c</button>
+            </div>
+            <p style="text-align:center">Updates/Notes: wait for friend to finish drawing the map layout for the whole game</p>
+        </div>
+        <script>
+            //basic element and buttons
+            const jscv = document.getElementById("cv")
+            const ctx = jscv.getContext("2d")
+            const jsinv = document.getElementById("invent")
+            const invctx = jsinv.getContext("2d")
+            const jsmap = document.getElementById("cvmap")
+            const mapctx = jsmap.getContext("2d")
+            const jsu = document.getElementById("up")
+            const jsl = document.getElementById("left")
+            const jsr = document.getElementById("right")
+            const jsd = document.getElementById("down")
+            const jsac = document.getElementById("interact")
+            const jsib = document.getElementById("inb")
+            const jsbmap = document.getElementById("bmap")
+            const action = document.getElementById("attack")
+            //the visuals in words
+            let boxa = {x:225, y:400, w:50, h:50, s:5, c:"blue", vx:0, vs:1, vy:0, cap:10, fr:0.9}
+            let croom = 1
+            const mbs = 40 //map box size
+            const cxc = jsmap.width / 2 - mbs / 2 //center x coordinate
+            const cyc = jsmap.height / 2 - mbs / 2
+            //BLUEPRINTS:
+            // array = walls so, [{x, y, w, h}], doors [{x, y, w, h, c, tr, sx, sy}], cluez [{x, y, w, h, c, n, d}], roomNum:{ve, rx, ry} also ve:true for velocity
+            //for map placement: cxc/cyc + (n * mbs), n = 1 right/down, -1 left/up
+            let rooms = {
+                1:{rx:cxc + (0 * mbs), ry:cyc + (0 * mbs),
+                boxb:null, 
+                array:[{x:150, y:200, w:200, h:100}, {x:0, y:0, w:50, h:500}, {x:450, y:0, w:50, h:500}], 
+                doors:[{x:225, y:0, w:50, h:50, c:"#B5651D", tr:2, sx:225, sy: 450}]
+                }, 
+                2:{rx:cxc + (0 * mbs), ry:cyc + (-1 * mbs), 
+                boxb:null, 
+                array:[{x:350, y:100, w:50, h:400}, {x:100, y:0, w:50, h:400}],
+                doors:[{x:225, y:450, w:50, h:50, c:"#B5651D", tr:1, sx:225, sy:0}, {x:450, y:250, w:50, h:50, c:"#B5651D",tr:3, sx:0, sy:250}, {x:0, y:250, w:50, h:50, c:"gray", tr:4, sx:400, sy:250, s:false}],
+                clues:[{x:50, y:0, w:20, h:10, c:"yellow", n:"a torn note", d:"(a part of the note has been torn) code: 31415... ", col:true}]
+                },
+                3:{rx:cxc + (1 * mbs), ry:cyc + (-1 * mbs),
+                boxb:{x:450, y:250, w:50, h:50, c:"red", st:false},
+                array:[{x:150, y:200, w:200, h:150}],
+                doors:[{x:0, y:250, w:50, h:50, c:"#B5651D", tr:2, sx:450, sy:250}],
+                clues:[{x:40, y:490, w:10, h:10, c:"yellow", n:"a small torn note", d:"...9265", col:true}],
+                },
+                4:{rx:cxc + (-1 * mbs), ry:cyc + (-1 * mbs),
+                boxb:null,
+                array:[{x:0, y:0, h:500, w:50}, {x:0, y:450, h:50, w:500}, {x:450, y:0, h:500, w:50}],
+                doors:[{x:400, y:250, w:50, h:50, c:"#B5651D", tr:2, sx:0, sy:250}, {x:0, y:0, w:500, h:50, c:"rgba(0,0,0,0)", tr:5, sx:null, sy:400, hall:true}]
+                },
+                5:{rx:cxc + (-1 * mbs), ry:cyc + (-2 * mbs), ve:true,
+                array:[{x:0, y:0, w:100, h:100}, {x:450, y:0, h:500, w:50}, {x:0, y:450, w:50, h:50}],
+                doors:[{x:50, y:460, w:450, h:50, c:"rgba(0,0,0,0)", tr:4, sx:null, sy:100, hall:true}, {x:0, y:100, w:50, h:400, c:"rgba(0,0,0,0)", tr:6, sx:400, sy:null, hall:true}, {x:100, y:0, w:400, h:50, c:"rgba(0,0,0,0)", tr:8, sx:null, sy:400, hall:true}],
+                weapon:[{x:250, y:250, w:50, h:10, c:"red", n:"crowbar", d:"its a crowbar", dur:null, eq:false, col:true, aw:50, ah:80, type:"melee"}]
+                },
+                6:{rx:cxc + (-2 * mbs), ry:cyc + (-2 * mbs), ve:true,
+                array:[{x:400, y:0, w:100, h:100}, {x:0, y:450, w:500, h:50}, {x:0, y:0, w:50, h:500}],
+                doors:[{x:450, y:100, w:50, h:400, c:"rgba(0,0,0,0)", tr:5, sx:50, sy:null, hall:true}, {x:50, y:0, w:400, h:50, c:"rgba(0,0,0,0)", tr:7, sx:null, sy:400, hall:true}]
+                },
+                7:{rx:cxc + (-2 * mbs), ry:cyc + (-3 * mbs), ve:true,
+                array:[{x:400, y:400, w:100, h:100}, {x:0, y:0, w:50, h:500}, {x:0, y:0, w:500, h:50}],
+                doors:[{x:50, y:450, w:350, h:50, c:"rgba(0,0,0,0)", tr:6, sx:null, sy:50, hall:true}, {x:450, y:50, w:50, h:350, c:"rgba(0,0,0,0)", tr:8, sx:50, sy:null, hall:true}]
+                },
+                8:{rx:cxc + (-1 * mbs), ry:cyc + (-3 * mbs), ve:true,
+                array:[{x:0, y:400, w:100, h:100}, {x:0, y:0, w:500, h:50}, {x:450, y:0, w:50, h:500}],
+                doors:[{x:50, y:450, w:350, h:50, c:"rgba(0,0,0,0)", tr:5, sx:null, sy:50, hall:true}, {x:0, y:50, w:50, h:350, c:"rgba(0,0,0,0)", tr:7, sx:400, sy:null, hall:true}]
+                }
+            }
+            let drooms = {1: true, 2:false, 3:false, 4:false, 5:false, 6:false, 7:false, 8:false}
+            let boxb = rooms[croom].boxb
+            let array = rooms[croom].array
+            let doors = rooms[croom].doors
+            let clues = rooms[croom].clues
+            let weapon = rooms[croom].weapon
+            let inv = [] //add eq for equipability
+            let invI = 0
+            //boolean
+            let cu = false
+            let cl = false
+            let cr = false
+            let cd = false
+            let ac = false
+            let pause = false
+            let plr = false
+            let dialogue = false
+            let openinv = false
+            let tItem = null 
+            let tIndex = null 
+            let tlist = null
+            let pass = false
+            let mapopen = false
+            let ldir = "r"
+            let vel = false //change true for velocity
+            let atk = false
+            let hitbox = null
+            let atkt = 0
+            let atkdur = 5
+            // MOVEMENT
+            function move(){
+                if (vel === true){
+                    if (cl === true){boxa.vx -= boxa.vs}
+                    if (cr === true){boxa.vx += boxa.vs}
+                    if (cu === true){boxa.vy -= boxa.vs}
+                    if (cd === true){boxa.vy += boxa.vs}
+                    boxa.vy *= boxa.fr
+                    boxa.vx *= boxa.fr
+                    if (boxa.vx > boxa.cap){boxa.vx = boxa.cap}
+                    if (boxa.vx < -boxa.cap){boxa.vx = -boxa.cap}
+                    if (boxa.vy > boxa.cap){boxa.vy = boxa.cap}
+                    if (boxa.vy < -boxa.cap){boxa.vy = -boxa.cap}
+                    boxa.x += boxa.vx
+                    wallCollision("x")
+                    boxa.y += boxa.vy
+                    wallCollision("y")
+                    end()
+                }else{ 
+                    if (cl === true){boxa.x -= boxa.s}
+                    if (cr === true){boxa.x += boxa.s}
+                    if (wallCollision() === true){
+                        if (cl === true){boxa.x += boxa.s}
+                        if (cr === true){boxa.x -= boxa.s}}
+                    if (cu === true){boxa.y -= boxa.s}
+                    if (cd === true){boxa.y += boxa.s}
+                    if (wallCollision() === true){
+                        if (cu === true){boxa.y += boxa.s}
+                        if (cd === true){boxa.y -= boxa.s}
+                    }
+                    end()
+                }
+            }
+            //COLLISION
+            function collision (rect1, rect2){
+                return (rect1.x < rect2.x + rect2.w && rect1.x + rect1.w > rect2.x && rect1.y < rect2.y + rect2.h && rect1.y + rect1.h > rect2.y)
+            }
+            function end(){
+                    if (boxa.y > jscv.height - boxa.h){
+                        boxa.vy = 0
+                        boxa.y = jscv.height - boxa.h
+                    }
+                    if (boxa.y < 0){
+                        boxa.vy = 0
+                        boxa.y = 0 
+                    }
+                    if (boxa.x > jscv.width - boxa.w){
+                        boxa.vx = 0
+                        boxa.x = jscv.width - boxa.w
+                    }
+                    if (boxa.x < 0){
+                        boxa.vx = 0
+                        boxa.x = 0
+                    }
+            }
+            function wallCollision(d = null){
+                if (array){
+                    for (let i = 0; i < array.length;i++){
+                        if (collision(boxa, array[i])){
+                            if (vel === true && d === "y"){
+                                if (boxa.vy > 0) {boxa.y = array[i].y - boxa.h}
+                                else if (boxa.vy < 0) {boxa.y = array[i].y + array[i].h}
+                                boxa.vy = 0
+                                break
+                            }else if(vel === true && d === "x"){
+                                if (boxa.vx > 0) {boxa.x = array[i].x - boxa.w}
+                                else if (boxa.vx < 0) {boxa.x = array[i].x + array[i].w}
+                                boxa.vx = 0
+                                break 
+                        }
+                        return true
+                        }}
+                    }
+                }
+            //Not so random important stuff
+            function changeRoom(nr, npx, npy){
+                croom = nr
+                if (drooms[croom] === false){drooms[croom] = true}
+                if (rooms[croom].ve === true){vel = true}
+                else{
+                    vel = false
+                    boxa.vx = 0
+                    boxa.vy = 0
+                }
+                boxb = rooms[croom].boxb
+                array = rooms[croom].array
+                doors = rooms[croom].doors
+                clues = rooms[croom].clues
+                weapon = rooms[croom].weapon
+                boxa.x = (npx === null) ? boxa.x : npx
+                boxa.y = (npy === null) ? boxa.y : npy
+            }
+            function inventory(){
+                if (openinv === true){
+                    pause = true
+                    document.getElementById("inve").style.display = "block"
+                    mapopen = false}
+                if (openinv === false){
+                    document.getElementById("inve").style.display = "none"
+                }
+            }
+            function map(){
+                if (mapopen === true){
+                    openinv = false
+                    document.getElementById("divmap").style.display = "block"
+                }
+                if (mapopen === false){
+                    document.getElementById("divmap").style.display = "none"
+                }
+            }
+            function invInt(){
+                if (pause === true && openinv === true){
+                    if (cl === true){
+                        if (invI > 0){invI--}
+                        cl = false
+                    }
+                    if (cr === true){
+                        if (invI < inv.length - 1){invI++}
+                        cr = false
+                    }
+                    if (inv.length > 0 && inv[invI]){
+                        if (inv[invI].eq !== undefined){
+                            if (ac === true && inv[invI].eq === false){
+                                inv[invI].eq = true
+                                ac = false
+                                return showM("equiped")
+                            }else if (ac === true && inv[invI].eq === true){
+                                inv[invI].eq = false
+                                ac = false
+                                return showM("unequiped")}
+                        }
+                    }
+                }
+            }
+            function ask(item, index, list){
+                document.getElementById("take").style.display = "block"
+                dialogue = true
+            }
+            //MINIGAME STUFFS 
+            function passcode(){
+                pass = true
+                document.getElementById("mg1").style.display = "block"
+            }
+            function mgpc(){
+                pass = false
+                if (document.getElementById("userint").value === "314159265"){
+                    showM("access granted, door unlocked.")
+                    rooms[2].doors[2].s = true
+                    rooms[2].doors[2].c = "#B5651D"
+                    rooms[3].boxb.st = true
+                }else{
+                    showM("request denied.")
+                }
+            }
+            document.getElementById("submit").addEventListener("click", function(){mgpc(); document.getElementById("mg1").style.display = "none"})
+            //message
+            function showM(text){
+                pause = true
+                dialogue = true
+                if (openinv === true){openinv = false}
+                document.getElementById("word").textContent = text
+                document.getElementById("message").style.display = "block"
+            }
+            function hideM(){
+                pause = false
+                dialogue = false
+                document.getElementById("message").style.display = "none"
+            }
+            //MAIN things
+            function Interaction(){
+                if (boxb && collision(boxa, boxb) && ac === true && rooms[3].boxb.st === false){
+                    passcode()
+                    ac = false
+                }
+                if (doors){
+                    for (let i = 0; i < doors.length; i++){
+                    if (collision(boxa, doors[i]) && doors[i].hall === true){
+                        changeRoom(doors[i].tr, doors[i].sx, doors[i].sy)
+                        break
+                    }
+                    else if (collision(boxa, doors[i]) && ac === true){
+                        if (doors[i].s === undefined || doors[i].s === true){
+                        changeRoom(doors[i].tr, doors[i].sx, doors[i].sy)
+                        }else if (doors[i].s === false){
+                            showM("its locked")
+                        }
+                    ac = false}}
+                }
+                if (clues){
+                    for (let i = 0; i < clues.length; i++){
+                        if (collision(boxa, clues[i]) && ac === true && clues[i].col === true){
+                        showM(clues[i].d)
+                        tItem = clues[i]
+                        tIndex = i
+                        tlist = clues}
+                    }
+                }
+                if (weapon){
+                    hitbox = null
+                    for (let i = 0; i < weapon.length; i++){
+                    if (collision(weapon[i], boxa) && ac === true){
+                        let thing = weapon.splice(i, 1)[0]
+                        inv.push(thing)
+                        i--
+                    }}}
+                if (atk){
+                        let bling = inv.find(item => item.eq === true && item.type === "melee" )
+                            if (bling){
+                                let hx = boxa.x
+                                let hy = boxa.y
+                                let hw = bling.aw
+                                let hh = bling.ah
+                                if (ldir === "l"){
+                                    hx -= hw
+                                    hy += (boxa.h - hh)/2
+                                }else if (ldir === "r"){
+                                    hx += boxa.w
+                                    hy += (boxa.h - hh)/2
+                                }else if (ldir === "u"){
+                                    let temp = hw;hw=hh;hh=temp
+                                    hx += (boxa.w - hw)/2
+                                    hy -= hh
+                                }else if (ldir === "d"){
+                                    let temp = hw;hw=hh;hh=temp
+                                    hx += (boxa.w - hw)/2
+                                    hy += boxa.h 
+                               }
+                               hitbox = {x:hx, y:hy, w:hw, h:hh}
+                            }
+                        }
+                        atkt--
+                        if (atkt <= 0){
+                            atk = false
+                            hitbox = null
+                        }
+                }               
+            function draw(){
+                ctx.clearRect(0, 0, jscv.width, jscv.height)
+                if (array){
+                    for (let i = 0; i < array.length; i++){
+                        ctx.fillStyle = "black";
+                        ctx.fillRect(array[i].x, array[i].y, array[i].w, array[i].h)
+                }}
+                if (doors){
+                    for (let i = 0; i < doors.length; i++){
+                        ctx.fillStyle = doors[i].c
+                        ctx.fillRect(doors[i].x, doors[i].y, doors[i].w, doors[i].h)}
+                }
+                if (clues){
+                    for (let i = 0; i < clues.length; i++){
+                        ctx.fillStyle = clues[i].c
+                        ctx.fillRect(clues[i].x, clues[i].y, clues[i].w, clues[i].h)
+                    }
+                }
+                if (weapon){
+                    for (let i = 0; i < weapon.length; i++){
+                    let dan = weapon[i]
+                    ctx.fillStyle = dan.c
+                    ctx.fillRect(dan.x, dan.y, dan.w, dan.h) 
+                    }
+                }
+                let dan = inv.find(item => item.eq === true && item.type === "semi")
+                if (dan) {
+                    let wx, wy, ww, wh
+                    if (ldir === "l") {
+                        ww = dan.w; wh = dan.h;
+                        wx = boxa.x - ww;
+                        wy = boxa.y + (boxa.h - wh) / 2;
+                    } else if (ldir === "r") {
+                        ww = dan.w; wh = dan.h;
+                        wx = boxa.x + boxa.w;
+                        wy = boxa.y + (boxa.h - wh) / 2;
+                    } else if (ldir === "u") {
+                        ww = dan.h; wh = dan.w; 
+                        wx = boxa.x + (boxa.w - ww) / 2;
+                        wy = boxa.y - wh;
+                    } else if (ldir === "d") {
+                        ww = dan.h; wh = dan.w; 
+                        wx = boxa.x + (boxa.w - ww) / 2;
+                        wy = boxa.y + boxa.h;
+                    }
+                    ctx.fillStyle = dan.c
+                    ctx.fillRect(wx, wy, ww, wh)
+                }
+                let mel = inv.find(item => item.eq === true && item.type === "melee")
+                if (mel) {
+                    let wx, wy, ww, wh
+                    if (ldir === "l") {
+                        ww = mel.w; wh = mel.h
+                        wx = boxa.x + (boxa.w - ww)/2
+                        wy = boxa.y - wh
+                    } else if (ldir === "r") {
+                        ww = mel.w; wh = mel.h
+                        wx = boxa.x + (boxa.w - ww)/2
+                        wy = boxa.y + boxa.h
+                    } else if (ldir === "u") {
+                        ww = mel.h; wh = mel.w
+                        wx = boxa.x + boxa.w
+                        wy = boxa.y + (boxa.h - wh)/2
+                    } else if (ldir === "d") {
+                        ww = mel.h; wh = mel.w
+                        wx = boxa.x - ww
+                        wy = boxa.y + (boxa.h - wh)/2
+                    }
+                    ctx.fillStyle = mel.c
+                    ctx.fillRect(wx, wy, ww, wh)
+                }
+                if (atk && hitbox){
+                    ctx.fillStyle = "red"
+                    ctx.fillRect(hitbox.x, hitbox.y, hitbox.w, hitbox.h)
+                }
+                if (boxb){
+                    ctx.fillStyle = boxb.c;
+                    ctx.fillRect(boxb.x, boxb.y, boxb.w, boxb.h)}                
+                ctx.fillStyle = boxa.c;
+                ctx.fillRect(boxa.x, boxa.y, boxa.w, boxa.h)
+                if (openinv === true){
+                    invctx.fillStyle = "gray"
+                    invctx.fillRect(0, 0, jsinv.width, jsinv.height)
+                    for (let i = 0; i < inv.length; i++){
+                        let cx = 15 + i * (20 + 30)
+                        if (i === invI){
+                            invctx.fillStyle = "white"
+                            invctx.fillRect(cx - 3, 2, 46, 46)
+                        }
+                        if (inv[i].eq === true){
+                            invctx.fillStyle = "green"
+                            invctx.fillRect(cx - 2, 3, 44, 44)
+                        }
+                        invctx.fillStyle = inv[i].c
+                        invctx.fillRect(cx, 5, 40, 40)
+                    }
+                }
+                if (inv.length > 0 && inv[invI]){
+                    let aItem = inv[invI]
+                    document.getElementById("iName").textContent = aItem.n
+                    document.getElementById("iDesc").textContent = aItem.d
+                }else{
+                    document.getElementById("iName").textContent = "inventory empty"
+                }
+                if (mapopen === true){
+                    mapctx.fillStyle = "white"
+                    mapctx.fillRect(0, 0, jsmap.width, jsmap.height)
+                    for (let i = 1; i <= Object.keys(rooms).length; i++){
+                        if (drooms[i] === true){
+                            mapctx.fillStyle = "gray"
+                            mapctx.fillRect(rooms[i].rx, rooms[i].ry, 40, 40)
+                            }
+                        if (croom === i){
+                            mapctx.fillStyle = "blue"
+                            mapctx.fillRect(rooms[i].rx + 15, rooms[i].ry + 15, 10, 10)
+                            }
+                        }
+                    }
+                }
+            function gameloop(){
+            if (openinv === true || dialogue === true || tItem !== null || pass === true || mapopen === true) {pause = true}else{pause = false}
+                if (pause === false){
+                    move()
+                }
+                if (dialogue === true && ac === true){
+                    hideM()
+                    ac = false
+                    if (tItem !== null){
+                        ask(tItem, tIndex, tlist)
+                    }
+                }
+                Interaction()
+                draw()
+                inventory()
+                map()
+                invInt()
+                if (ac === true){ac = false}
+                requestAnimationFrame(gameloop)
+            }
+            //button activation
+            jsu.addEventListener("touchstart", function(e){
+                e.preventDefault(); cu = true; ldir = "u"
+            })
+            jsu.addEventListener("touchend", function(){cu = false; ldir = "u"})
+            jsl.addEventListener("touchstart", function(e){
+              e.preventDefault(); cl = true; ldir = "l"
+            })
+            jsl.addEventListener("touchend", function(){cl = false; ldir = "l"})
+            jsr.addEventListener("touchstart", function(e){
+                e.preventDefault(); cr = true; ldir = "r"
+            })
+            jsr.addEventListener("touchend", function(){cr = false; ldir = "r"})
+            jsd.addEventListener("touchstart", function(e){
+                e.preventDefault(); cd = true; ldir = "d"
+            })
+            jsd.addEventListener("touchend", function(){cd = false; ldir = "d"})
+            jsac.addEventListener("touchstart", function(e){
+                e.preventDefault(); ac = true;
+            })
+            function menu(type) {
+                if (type === "inventory") {
+                    openinv = !openinv        
+                    mapopen = false 
+                } 
+                else if (type === "map"){
+                    mapopen = !mapopen
+                    openinv = false 
+                }
+            }
+            jsib.addEventListener("touchstart", function(e) {
+                e.preventDefault()
+                menu("inventory")
+            })
+            jsbmap.addEventListener("touchstart", function(e) {
+                e.preventDefault()
+                menu("map")
+            })
+            action.addEventListener("touchstart", (e) => {e.preventDefault(); if(!atk) {atk = true; atkt = atkdur}})
+            action.addEventListener("touchend", () => {atk = false})
+            document.getElementById("yes").addEventListener("click", function(){
+                    if (tItem !== null)
+                    inv.push(tItem)
+                    tlist.splice(tIndex, 1)
+                    document.getElementById("take").style.display = "none"
+                    dialogue = false
+                    tItem = null
+                    tIndex = null
+                    tlist = null
+                })
+            document.getElementById("no").addEventListener("click", function(){
+                    document.getElementById("take").style.display = "none"
+                    dialogue = false
+                    tItem = null
+                    tIndex = null
+                    tlist = null
+                })
+            document.getElementById("cheat").addEventListener("touchstart", function()  {rooms[2].doors[2].s = true
+                rooms[2].doors[2].c = "#B5651D"
+                rooms[3].boxb.st = true})
+            window.addEventListener("keydown", function(e) {
+                if (e.key === "w" || e.key === "ArrowUp"){ cu = true; ldir = "u"; }
+                if (e.key === "a" || e.key === "ArrowLeft"){ cl = true; ldir = "l"; }
+                if (e.key === "s" || e.key === "ArrowDown"){ cd = true; ldir = "d"; }
+                if (e.key === "d" || e.key === "ArrowRight"){ cr = true; ldir = "r"; }
+                if (e.key.toLowerCase() === "e" || e.key === " ") { ac = true; }
+                if (e.key.toLowerCase() === "f") { 
+                    if (!atk) { atk = true; atkt = atkdur; } 
+                }
+                if (e.key.toLowerCase() === "i") { menu("inventory"); }
+                if (e.key.toLowerCase() === "m") { menu("map"); }
+                if (e.key === "Enter") {
+                    if (document.getElementById("take").style.display === "block") {
+                        document.getElementById("yes").click();
+                    } else if (document.getElementById("mg1").style.display === "block") {
+                        document.getElementById("submit").click();
+                    }
+                }
+                if (e.key === "Escape" && document.getElementById("take").style.display === "block") {
+                    document.getElementById("no").click();
+                }
+            })
+            window.addEventListener("keyup", function(e) {
+                if (e.key === "w" || e.key === "ArrowUp"){cu = false}
+                if (e.key === "a" || e.key === "ArrowLeft"){cl = false}
+                if (e.key === "s" || e.key === "ArrowDown"){cd = false}
+                if (e.key === "d" || e.key === "ArrowRight"){cr = false}
+                if (e.key.toLowerCase() === "e" || e.key === " "){ac = false}
+                if (e.key.toLowerCase() === "f"){atk = false}
+            })
+            gameloop()
+        </script>
+    </body>
+</html>
