@@ -530,7 +530,8 @@
             if (openinv === true || dialogue === true || tItem !== null || pass === true || mapopen === true) {pause = true}else{pause = false}
                 if (pause === false){
                     move()
-                }
+                    action.disabled = false
+                }else{action.disabled = true}
                 if (dialogue === true && ac === true){
                     hideM()
                     ac = false
