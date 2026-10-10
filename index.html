@@ -171,35 +171,37 @@
             let hitbox = null
             let atkt = 0
             let atkdur = 5
+            let lt = 0
             // MOVEMENT
-            function move(){
+            function move(dt){
                 if (vel === true){
-                    if (cl === true){boxa.vx -= boxa.vs}
-                    if (cr === true){boxa.vx += boxa.vs}
-                    if (cu === true){boxa.vy -= boxa.vs}
-                    if (cd === true){boxa.vy += boxa.vs}
+                    if (cl === true){boxa.vx -= boxa.vs * dt * 60}
+                    if (cr === true){boxa.vx += boxa.vs * dt * 60}
+                    if (cu === true){boxa.vy -= boxa.vs * dt * 60}
+                    if (cd === true){boxa.vy += boxa.vs * dt * 60}
                     boxa.vy *= boxa.fr
                     boxa.vx *= boxa.fr
                     if (boxa.vx > boxa.cap){boxa.vx = boxa.cap}
                     if (boxa.vx < -boxa.cap){boxa.vx = -boxa.cap}
                     if (boxa.vy > boxa.cap){boxa.vy = boxa.cap}
                     if (boxa.vy < -boxa.cap){boxa.vy = -boxa.cap}
-                    boxa.x += boxa.vx
+                    boxa.x += boxa.vx * dt * 60
                     wallCollision("x")
-                    boxa.y += boxa.vy
+                    boxa.y += boxa.vy * dt * 60
                     wallCollision("y")
                     end()
-                }else{ 
-                    if (cl === true){boxa.x -= boxa.s}
-                    if (cr === true){boxa.x += boxa.s}
+                }else{
+                    let speed = boxa.s * dt * 60
+                    if (cl === true){boxa.x -= speed}
+                    if (cr === true){boxa.x += speed}
                     if (wallCollision() === true){
-                        if (cl === true){boxa.x += boxa.s}
-                        if (cr === true){boxa.x -= boxa.s}}
-                    if (cu === true){boxa.y -= boxa.s}
-                    if (cd === true){boxa.y += boxa.s}
+                        if (cl === true){boxa.x += speed}
+                        if (cr === true){boxa.x -= speed}}
+                    if (cu === true){boxa.y -= speed}
+                    if (cd === true){boxa.y += speed}
                     if (wallCollision() === true){
-                        if (cu === true){boxa.y += boxa.s}
-                        if (cd === true){boxa.y -= boxa.s}
+                        if (cu === true){boxa.y += speed}
+                        if (cd === true){boxa.y -= speed}
                     }
                     end()
                 }
@@ -526,12 +528,16 @@
                         }
                     }
                 }
-            function gameloop(){
+            function gameloop(ts){
+            if (!ts){ts = 0}
+            if (!lt){lt = ts}
+            let dt = (ts - lt)/1000
+            if (dt > 0.1){dt = 0.1}
+            lt = ts
             if (openinv === true || dialogue === true || tItem !== null || pass === true || mapopen === true) {pause = true}else{pause = false}
                 if (pause === false){
-                    move()
-                    action.disabled = false
-                }else{action.disabled = true}
+                    move(dt)
+                }
                 if (dialogue === true && ac === true){
                     hideM()
                     ac = false
@@ -637,7 +643,7 @@
                 if (e.key.toLowerCase() === "e" || e.key === " "){ac = false}
                 if (e.key.toLowerCase() === "f"){atk = false}
             })
-            gameloop()
+            requestAnimationFrame(gameloop)
         </script>
     </body>
-</html>
+    </html>
