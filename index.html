@@ -92,6 +92,10 @@
             const jsib = document.getElementById("inb")
             const jsbmap = document.getElementById("bmap")
             const action = document.getElementById("attack")
+            const music1 = new Audio("folder/music.mp3")
+            music1.loop = true
+            window.ontouchstart = () => music1.play()
+            window.onkeydown = () => music1.play()
             //the visuals in words
             let boxa = {x:225, y:400, w:50, h:50, s:5, c:"blue", vx:0, vs:1, vy:0, cap:10, fr:0.9}
             let croom = 1
